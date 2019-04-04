@@ -2,12 +2,12 @@ CREATE OR REPLACE FUNCTION core_schema.udf_brands_categories_insert(
     param_brand_id INTEGER, 
     param_category_id INTEGER
 )
- RETURNS BIT
+ RETURNS VOID
  LANGUAGE plpgsql
 AS $function$
     DECLARE
-
-        local_is_successful BIT := '0';
+        local_brands_categories_id INTEGER;
+        local_notify_payload_resulting VARCHAR;
 
     BEGIN
         INSERT INTO core_schema.tbl_brands_categories
@@ -21,13 +21,22 @@ AS $function$
             param_brand_id
             , param_category_id
             , CLOCK_TIMESTAMP()
-        );
+        ) RETURNING brands_categories_id INTO local_brands_categories_id;
 
-        --PERFORM pg_notify ('notify_channel_notify_channel_tbl_brands_categories', param_brand_id || '_' || param_category_id) ;
-
-        local_is_successful := '1';
-
-        RETURN local_is_successful;
+        -- Send notification to python to store in redis (json_build_object 
+        -- used with Postgres greater or equal to 9.4)
+        local_notify_payload_resulting = (
+            SELECT 
+                json_build_object(
+                    'brands_categories_id',local_brands_categories_id,
+                    'brand_id',param_brand_id,
+                    'categories_id',param_category_id,
+                    'redisHash','tbl_brands_categories_' || param_brand_id || '_' || param_category_id
+                    )::TEXT
+                );
+        PERFORM pg_notify (
+            'notify_channel_tbl_brands_categories', local_notify_payload_resulting
+            );
 
     END;
     $function$

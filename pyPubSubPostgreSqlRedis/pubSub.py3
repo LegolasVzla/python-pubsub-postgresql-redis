@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import psycopg2, psycopg2.extras
+import select
 import redis
 import requests
 import json
@@ -67,37 +68,47 @@ def apiQuery():
 
 	return data_packet
 
-def listenerBrandsCategoriesRelationship(brand_id,category_id):
+def listen(pgcon, pgcur, channel):
+	try:
+		pgcon.poll()
+		notify = pgcon.notifies.pop()
+		#print ("NOTIFY received:", notify.pid, notify.channel, notify.payload)
+		return notify.payload
+	except Exception as e:
+		print ("NOTIFY by the channel: " +channel+" not received. Error: " + str(e))
+		return None
+
+def checkBrandsCategoriesRelationship(r,pgcon,pgcur,brand_id,category_id):
 
 	try:
 
-		r = redisConnection()
-		pgcon, pgpcur = postgresConnection()
-
 		# If exists in redis, do not insert in postgres
 		if (r.hget(
-			"tbl_brands_categories_"+str(brand_id)+"_"+str(category_id),"category_id")):
+			"tbl_brands_categories_"+str(brand_id)+"_"+str(category_id),"brands_categories_id")):
 			print ("tbl_brands_categories_"+str(brand_id)+"_"+str(category_id)+" already exists")
 
 		# If not exists in redis...
 		else:
-			print ("tbl_brands_categories"+str(brand_id)+"_"+str(category_id)+" doesn't exists")
+			print ("tbl_brands_categories_"+str(brand_id)+"_"+str(category_id)+" doesn't exists")
 
 			# Load in postgres
-			pgpcur.execute("BEGIN")
-			#pgpcur.execute("LISTEN notify_channel_tbl_brands_categories")
+			pgcur.execute("BEGIN")
+			pgcur.execute("LISTEN notify_channel_tbl_brands_categories")
 			args = [brand_id,category_id]
-			pgpcur.callproc("core_schema.udf_brands_categories_insert",args)
-			brands_categories_result = pgpcur.fetchone()
-			pgpcur.execute("COMMIT")
-			print ("Executed sucessfully udf_brands_categories_insert")
+			pgcur.callproc("core_schema.udf_brands_categories_insert",args)
+			pgcur.execute("COMMIT")
+			#print ("Executed sucessfully udf_brands_categories_insert")
+			payload = listen(pgcon,pgcur,'notify_channel_tbl_brands_categories')
 
-			if (brands_categories_result[0] == '1'):
+			if (payload is not None):
 
-				key = "tbl_brands_categories_"+str(brand_id)+"_"+str(category_id)
+				json_response = json.loads(payload)
+
+				key = json_response['redisHash']
 				valuesDict = {}
-				valuesDict['brand_id'] = str(brand_id)
-				valuesDict['category_id'] = str(category_id)
+				valuesDict['brands_categories_id'] = str(json_response['brands_categories_id'])
+				valuesDict['brand_id'] = str(json_response['brand_id'])
+				valuesDict['categories_id'] = str(json_response['categories_id'])
 
 				# Send values to Redis
 				r.hmset(key,valuesDict)
@@ -105,63 +116,55 @@ def listenerBrandsCategoriesRelationship(brand_id,category_id):
 	except Exception as e:
 		print ("Fail in listenerBrandsCategoriesRelationship. Error: "+ str(e))
 
-	finally:
-		pgcon.close()
-		pgpcur.close()
-
-def listenerCategories(data_packet_elem,brand_id):
+def checkCategories(r,pgcon,pgcur,data_packet_elem,brand_id):
 
 	try:
-
-		r = redisConnection()
-		pgcon, pgpcur = postgresConnection()
 
 		# If exists in redis, do not insert in postgres
 		if (r.hget("tbl_categories_"+data_packet_elem['category'],"name")):
 			print ("tbl_categories_"+data_packet_elem['category']+" already exists")
 			category_id = r.hget("tbl_categories_"+data_packet_elem['category'],"category_id")
 
-			listenerBrandsCategoriesRelationship(brand_id,category_id[0])
+			checkBrandsCategoriesRelationship(r,pgcon,pgcur,brand_id,category_id.decode())
 
 		# If not exists in redis...
 		else:
 			print ("Category: "+data_packet_elem['category']+" doesn't exists")
 
 			# Load in postgres
-			pgpcur.execute("BEGIN")
-			#pgpcur.execute("LISTEN notify_channel_tbl_categories")
+			pgcur.execute("BEGIN")
+			pgcur.execute("LISTEN notify_channel_tbl_categories")
 			args = [data_packet_elem['category']]
-			pgpcur.callproc("core_schema.udf_categories_insert",args)
-			category_id = pgpcur.fetchone()
-			pgpcur.execute("COMMIT")
+			pgcur.callproc("core_schema.udf_categories_insert",args)
+			pgcur.execute("COMMIT")
 			# print ("Executed sucessfully udf_categories_insert")
+			payload = listen(pgcon,pgcur,'notify_channel_tbl_categories')
 
-			if (category_id is not None):
+			if (payload is not None):
 
-				key = "tbl_categories_"+data_packet_elem['category']
+				json_response = json.loads(payload)
+
+				# In this case, key is buld by the category name, because
+				# the API doesn't supplie an ID, so to compare 
+				# the category name is used, but the ideal thing is to use
+				# the tablename followed by the id
+				key = json_response['redisHash']
 				valuesDict = {}
-				valuesDict['name'] = data_packet_elem['category']
-				valuesDict['category_id'] = str(category_id[0])
+				valuesDict['category_id'] = str(json_response['category_id'])
+				valuesDict['name'] = json_response['redisHash']
 
 				# Send values to Redis
 				r.hmset(key,valuesDict)
 
-				listenerBrandsCategoriesRelationship(brand_id,category_id[0])
+				checkBrandsCategoriesRelationship(r,pgcon,pgcur,brand_id,valuesDict['category_id'])
 
 	except Exception as e:
 		print ("Fail in listenerCategories. Error: "+ str(e))
 
-	finally:
-		pgcon.close()
-		pgpcur.close()
-
-def listenerBrands(data_packet_elem):
+def checkBrands(r,pgcon,pgcur,data_packet_elem):
 
 	# If the current food belongs to a brand
 	try:
-
-		r = redisConnection()
-		pgcon, pgpcur = postgresConnection()
 
 		# If exists in redis, do not insert in postgres
 		if (r.hget("tbl_brands_"+data_packet_elem['brand'],"name")):
@@ -169,43 +172,48 @@ def listenerBrands(data_packet_elem):
 			brand_id = r.hget("tbl_brands_"+data_packet_elem['brand'],"brand_id")
 
 			# Check if the category already exists in redis 
-			listenerCategories(data_packet_elem,brand_id[0])
+			checkCategories(r,pgcon,pgcur,data_packet_elem,brand_id.decode())
 
 		# If not exists in redis, load in postgres
 		else:
 			print ("Brand: "+data_packet_elem['brand']+" doesn't exists")
 
 			# Load in postgres
-			pgpcur.execute("BEGIN")
-			#pgpcur.execute("LISTEN notify_channel_tbl_brands")
+			pgcur.execute("BEGIN")
+			pgcur.execute("LISTEN notify_channel_tbl_brands")
 			args = [data_packet_elem['brand']]
-			pgpcur.callproc("core_schema.udf_brands_insert",args)
-			brand_id = pgpcur.fetchone()
-			pgpcur.execute("COMMIT")
+			pgcur.callproc("core_schema.udf_brands_insert",args)
+			pgcur.execute("COMMIT")
 			# print ("Executed sucessfully udf_brands_insert")
+			payload = listen(pgcon,pgcur,'notify_channel_tbl_brands')
 
-			if (brand_id is not None):
+			if (payload is not None):
 
-				key = "tbl_brands_"+data_packet_elem['brand']
+				json_response = json.loads(payload)
+
+				# In this case, key is buld by the brand name, because
+				# the API doesn't supplie an ID, so to compare 
+				# the brand name is used, but the ideal thing is to use
+				# the tablename followed by the id
+				key = json_response['redisHash']
 				valuesDict = {}
-				valuesDict['name'] = data_packet_elem['brand']
-				valuesDict['brand_id'] = str(brand_id[0])
+				valuesDict['brand_id'] = str(json_response['brand_id'])
+				valuesDict['name'] = json_response['redisHash']
 
 				# Send values to Redis
 				r.hmset(key,valuesDict)
 
 				# Check if the category already exists in redis 
-				listenerCategories(data_packet_elem,brand_id[0])
+				checkCategories(r,pgcon,pgcur,data_packet_elem,valuesDict['brand_id'])
 
 	# If the current food doesn't belongs to a brand
 	except Exception as e:
 		print ("Fail in listenerBrands. Maybe the current food is not related with a brand, so it won't be stored. Error: "+ str(e))
 
-	finally:
-		pgcon.close()
-		pgpcur.close()
-
 def main():
+
+	r = redisConnection()
+	pgcon, pgcur = postgresConnection()
 
 	data_packet_list = []
 	'''
@@ -215,8 +223,11 @@ def main():
 	data_packet_list = apiQuery()
 	if (data_packet_list is not None):
 		for i, data_packet_elem in enumerate(data_packet_list):
-			listenerBrands(data_packet_elem)
+			checkBrands(r,pgcon,pgcur,data_packet_elem)
 		print ("Food datapacket processed sucessfully")
+
+	pgcon.close()
+	pgcur.close()
 
 if __name__ == '__main__':
     main()
