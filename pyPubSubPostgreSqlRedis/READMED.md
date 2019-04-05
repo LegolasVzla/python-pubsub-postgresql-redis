@@ -9,8 +9,27 @@ Install the requirements:
 
 	pip install -r requirements.txt
 
-Define your own connection settings for postgres and redis in the settings.ini file, and that's it. In this example you could find the basic logic for this kind of architecture.  
+Define your own connection settings for postgres and redis in the settings.ini file (according to configparser) as follow:
 
+	[pgConf]
+	DB_NAME=dbname
+	DB_USER=user
+	DB_PASS=pass
+	DB_HOST=host
+	DB_PORT=port
+
+	[redisConf]
+	R_DB=dbNumber
+	R_HOST=host
+	R_PORT=port
+
+	[appConf]
+	KEY=key
+	ID=id
+
+And that's it. In this example you could find the basic logic for this kind of architecture.  
+
+Also in case of redis failure, you can execute "redisResetLoad.py3" to get all the information from postgres, and then, store again in redis.
 
 Contributions
 -----------------------
