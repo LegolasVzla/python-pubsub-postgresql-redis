@@ -18,7 +18,7 @@ def postgresConnection():
 			)
 		curs = conn.cursor()
 	except (Exception,psycopg2.DatabaseError) as e:
-		print ("Postgres connection is not ready yet. Error: " + str(e))
+		logger.error("Postgres connection is not ready yet. Error: " + str(e))
 	return [conn, curs]
 
 def redisConnection():
@@ -30,7 +30,7 @@ def redisConnection():
 			)
 		r = redis.Redis(connection_pool=pool)
 	except Exception as e:
-		print ("Redis connection is not ready yet. Error: " + str(e))
+		logger.error("Redis connection is not ready yet. Error: " + str(e))
 	return r
 
 def apiQuery():
@@ -60,11 +60,12 @@ def apiQuery():
 				# Working with big XML or JSON structure, you could also think
 				# about store this temporal data_packet in a mongodb document
 				data_packet.append(elem['food'])
+			logger.info("Data Packet received successfully")
 		else:
-			print ("Fail in response\n")
+			logger.error("Fail in response\n")
 
 	except Exception as e:
-		print ("Fail in apiQuery. Error: "+ str(e))
+		logger.error("Fail in apiQuery. Error: "+ str(e))
 
 	return data_packet
 
@@ -72,10 +73,10 @@ def listen(pgcon, pgcur, channel):
 	try:
 		pgcon.poll()
 		notify = pgcon.notifies.pop()
-		#print ("NOTIFY received:", notify.pid, notify.channel, notify.payload)
+		logger.logger("NOTIFY received:", notify.pid, notify.channel, notify.payload)
 		return notify.payload
 	except Exception as e:
-		print ("NOTIFY by the channel: " +channel+" not received. Error: " + str(e))
+		logger.error("NOTIFY by the channel: " +channel+" not received. Error: " + str(e))
 		return None
 
 def checkBrandsCategoriesRelationship(r,pgcon,pgcur,brand_id,category_id):
@@ -85,11 +86,11 @@ def checkBrandsCategoriesRelationship(r,pgcon,pgcur,brand_id,category_id):
 		# If exists in redis, do not insert in postgres
 		if (r.hget(
 			"tbl_brands_categories_"+str(brand_id)+"_"+str(category_id),"brands_categories_id")):
-			print ("tbl_brands_categories_"+str(brand_id)+"_"+str(category_id)+" already exists")
+			logger.info("tbl_brands_categories_"+str(brand_id)+"_"+str(category_id)+" already exists")
 
 		# If not exists in redis...
 		else:
-			print ("tbl_brands_categories_"+str(brand_id)+"_"+str(category_id)+" doesn't exists")
+			logger.info("tbl_brands_categories_"+str(brand_id)+"_"+str(category_id)+" doesn't exists")
 
 			# Load in postgres
 			pgcur.execute("BEGIN")
@@ -97,7 +98,7 @@ def checkBrandsCategoriesRelationship(r,pgcon,pgcur,brand_id,category_id):
 			args = [brand_id,category_id]
 			pgcur.callproc("core_schema.udf_brands_categories_insert",args)
 			pgcur.execute("COMMIT")
-			#print ("Executed sucessfully udf_brands_categories_insert")
+			logger.info("Executed successfully udf_brands_categories_insert")
 			payload = listen(pgcon,pgcur,'notify_channel_tbl_brands_categories')
 
 			if (payload is not None):
@@ -112,9 +113,10 @@ def checkBrandsCategoriesRelationship(r,pgcon,pgcur,brand_id,category_id):
 
 				# Send values to Redis
 				r.hmset(key,valuesDict)
+				logger.info("Values sent to redis successfully: "+key+","+valuesDict)
 
 	except Exception as e:
-		print ("Fail in listenerBrandsCategoriesRelationship. Error: "+ str(e))
+		logger.error("Fail in listenerBrandsCategoriesRelationship. Error: "+ str(e))
 
 def checkCategories(r,pgcon,pgcur,data_packet_elem,brand_id):
 
@@ -122,14 +124,14 @@ def checkCategories(r,pgcon,pgcur,data_packet_elem,brand_id):
 
 		# If exists in redis, do not insert in postgres
 		if (r.hget("tbl_categories_"+data_packet_elem['category'],"name")):
-			print ("tbl_categories_"+data_packet_elem['category']+" already exists")
+			logger.info("tbl_categories_"+data_packet_elem['category']+" already exists")
 			category_id = r.hget("tbl_categories_"+data_packet_elem['category'],"category_id")
 
 			checkBrandsCategoriesRelationship(r,pgcon,pgcur,brand_id,category_id.decode())
 
 		# If not exists in redis...
 		else:
-			print ("Category: "+data_packet_elem['category']+" doesn't exists")
+			logger.info("Category: "+data_packet_elem['category']+" doesn't exists")
 
 			# Load in postgres
 			pgcur.execute("BEGIN")
@@ -137,7 +139,7 @@ def checkCategories(r,pgcon,pgcur,data_packet_elem,brand_id):
 			args = [data_packet_elem['category']]
 			pgcur.callproc("core_schema.udf_categories_insert",args)
 			pgcur.execute("COMMIT")
-			# print ("Executed sucessfully udf_categories_insert")
+			logger.info("Executed successfully udf_categories_insert")
 			payload = listen(pgcon,pgcur,'notify_channel_tbl_categories')
 
 			if (payload is not None):
@@ -155,11 +157,12 @@ def checkCategories(r,pgcon,pgcur,data_packet_elem,brand_id):
 
 				# Send values to Redis
 				r.hmset(key,valuesDict)
+				logger.info("Values sent to redis successfully: "+key+","+valuesDict)
 
 				checkBrandsCategoriesRelationship(r,pgcon,pgcur,brand_id,valuesDict['category_id'])
 
 	except Exception as e:
-		print ("Fail in listenerCategories. Error: "+ str(e))
+		logger.error("Fail in listenerCategories. Error: "+ str(e))
 
 def checkBrands(r,pgcon,pgcur,data_packet_elem):
 
@@ -168,7 +171,7 @@ def checkBrands(r,pgcon,pgcur,data_packet_elem):
 
 		# If exists in redis, do not insert in postgres
 		if (r.hget("tbl_brands_"+data_packet_elem['brand'],"name")):
-			print ("tbl_brands_"+data_packet_elem['brand']+" already exists")
+			logger.info("tbl_brands_"+data_packet_elem['brand']+" already exists")
 			brand_id = r.hget("tbl_brands_"+data_packet_elem['brand'],"brand_id")
 
 			# Check if the category already exists in redis 
@@ -176,7 +179,7 @@ def checkBrands(r,pgcon,pgcur,data_packet_elem):
 
 		# If not exists in redis, load in postgres
 		else:
-			print ("Brand: "+data_packet_elem['brand']+" doesn't exists")
+			logger.info("Brand: "+data_packet_elem['brand']+" doesn't exists")
 
 			# Load in postgres
 			pgcur.execute("BEGIN")
@@ -184,7 +187,7 @@ def checkBrands(r,pgcon,pgcur,data_packet_elem):
 			args = [data_packet_elem['brand']]
 			pgcur.callproc("core_schema.udf_brands_insert",args)
 			pgcur.execute("COMMIT")
-			# print ("Executed sucessfully udf_brands_insert")
+			logger.info("Executed successfully udf_brands_insert")
 			payload = listen(pgcon,pgcur,'notify_channel_tbl_brands')
 
 			if (payload is not None):
@@ -202,13 +205,14 @@ def checkBrands(r,pgcon,pgcur,data_packet_elem):
 
 				# Send values to Redis
 				r.hmset(key,valuesDict)
+				logger.info("Values sent to redis successfully: "+key+","+valuesDict)				
 
 				# Check if the category already exists in redis 
 				checkCategories(r,pgcon,pgcur,data_packet_elem,valuesDict['brand_id'])
 
 	# If the current food doesn't belongs to a brand
 	except Exception as e:
-		print ("Fail in listenerBrands. Maybe the current food is not related with a brand, so it won't be stored. Error: "+ str(e))
+		logger.error("Fail in listenerBrands. Maybe the current food is not related with a brand, so it won't be stored. Error: "+ str(e))
 
 def main():
 
@@ -224,7 +228,7 @@ def main():
 	if (data_packet_list is not None):
 		for i, data_packet_elem in enumerate(data_packet_list):
 			checkBrands(r,pgcon,pgcur,data_packet_elem)
-		print ("Food datapacket processed sucessfully")
+		print ("Food datapacket processed successfully")
 
 	pgcon.close()
 	pgcur.close()
