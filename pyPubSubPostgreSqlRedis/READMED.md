@@ -27,6 +27,30 @@ Define your own connection settings for postgres and redis in the settings.ini f
 	KEY=key
 	ID=id
 
+Also, for logging, I set this configuration in my settings.ini file:
+
+	[loggers]
+	keys=root
+
+	[handlers]
+	keys=consoleHandler
+
+	[formatters]
+	keys=sampleFormatter
+
+	[logger_root]
+	level=INFO
+	handlers=consoleHandler
+
+	[handler_consoleHandler]
+	class=StreamHandler
+	level=ERROR
+	formatter=sampleFormatter
+	args=(sys.stdout,)
+
+	[formatter_sampleFormatter]
+	format=%(asctime)s - %(levelname)s - %(message)s
+
 And that's it. In this example you could find the basic logic for this kind of architecture.  
 
 Also in case of redis failure, you can execute "redisResetLoad.py3" to get all the information from postgres, and then, store again in redis.
