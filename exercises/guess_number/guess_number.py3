@@ -4,20 +4,20 @@ import os
 
 # Function to generate a number for guess attempts
 def udf_number_generator(A,Aux,B,numbers_discarded):
-    valid = False
     Aux = A
+    valid = False
+    Qnumber_guess = 0
     while (valid == False):
-        Qnumber_guess = random.randrange(Aux,B)
+        Qnumber_guess = random.randrange(Aux,B+1)
         # Numbers discarded case
         if (Qnumber_guess in numbers_discarded):
-            valid == False
+            continue
         # Excluding A case
         elif (Qnumber_guess == A):
-            valid == False
+            continue
         else:
             valid = True
     return Qnumber_guess
-
 # Function to guess the number
 def udf_number_guess():
     judge_options=["TOO_SMALL","TOO_BIG","CORRECT","WRONG_ANSWER"]
@@ -25,6 +25,7 @@ def udf_number_guess():
     attempts = 0
     numbers_discarded = []
     error_program = False
+    
     # Get test cases
     try:
         T = int(input())
@@ -39,14 +40,15 @@ def udf_number_guess():
         except Exception as e:
             os._exit(0)
 
+        Aux = A
         # Get number of attempts for Ti case
         try:
             attempts_guess=int(input())
         except Exception as e:
             os._exit(0)
 
+        Qnumber_guess = udf_number_generator(A,A,B,numbers_discarded)
         while (attempts < attempts_guess):
-            Qnumber_guess = udf_number_generator(A,A,B,numbers_discarded)
             print(Qnumber_guess)
             try:
                 judge_answers=input()
@@ -55,21 +57,25 @@ def udf_number_guess():
 
             if(judge_answers == judge_options[0]):
                 #print ("TOO_SMALL")
-                numbers_discarded.append(Qnumber_guess)
-                udf_number_generator(Qnumber_guess,A,B,numbers_discarded)
                 attempts+=1
+                if (attempts != attempts_guess):
+                    numbers_discarded.append(Qnumber_guess)
+                    A = Qnumber_guess
+                    Qnumber_guess = udf_number_generator(A,Aux,B,numbers_discarded)
 
             elif(judge_answers == judge_options[1]):
                 #print ("TOO_BIG")
-                numbers_discarded.append(Qnumber_guess)
-                udf_number_generator(A,A,Qnumber_guess,numbers_discarded)
                 attempts+=1
+                if (attempts != attempts_guess):
+                    numbers_discarded.append(Qnumber_guess)
+                    B = Qnumber_guess
+                    Qnumber_guess = udf_number_generator(A,Aux,B,numbers_discarded)
 
             elif(judge_answers == judge_options[2]):
                 #print ("CORRECT")
                 break
 
-            elif(judge_answers == judge_options[3]):            
+            elif(judge_answers == judge_options[3]):
                 #print ("WRONG_ANSWER")
                 break
             # Validating wrong input
@@ -77,9 +83,11 @@ def udf_number_guess():
                 #print ("error 1")
                 error_program = True
                 break
+
         Qnumber_guess = attempts = 0
         numbers_discarded = []
         cases+=1
+
         # Unexpected exit
         if(error_program):
             #print ("error 2")
