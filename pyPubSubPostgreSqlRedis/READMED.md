@@ -16,6 +16,17 @@ Start redis server in your console:
 
 	redis-server
 
+Give permission to "execute_all.sh":
+
+	chmod +x pubsub_db/execute_all.sh
+	sudo -i -u postgres
+
+Move to the folder of the project and execute it as postgres user:
+
+	./execute_all.sh
+
+Now you have create your database and all the functions needed.
+
 Define your own connection settings for postgres and redis in the settings.ini file (according to configparser) as follow:
 
 	[pgConf]
@@ -60,7 +71,7 @@ Also, for logging, I set this configuration in my settings.ini file:
 
 And that's it. In this example you could find the basic logic for this kind of architecture.  
 
-Also in case of redis failure, you can execute "redisResetLoad.py3" to get all the information from postgres, and then, store again in redis.
+Also in case of redis failure (e.g. Lost data in redis), you can execute "redisResetLoad.py3" to get all the information from postgres, and then, store again in redis.
 
 Contributions
 -----------------------

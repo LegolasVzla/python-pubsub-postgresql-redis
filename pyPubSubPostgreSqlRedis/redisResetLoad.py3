@@ -35,7 +35,11 @@ def listen(pgcon, pgcur, channel):
 	try:
 		pgcon.poll()
 		notify = pgcon.notifies.pop()
-		logger.logger("NOTIFY received:", notify.pid, notify.channel, notify.payload)
+		notify_args = {}
+		notify_args['pid'] = notify.pid
+		notify_args['channel'] = notify.channel
+		notify_args['payload'] = json.loads(notify.payload)
+		logger.info("NOTIFY received:" +json.dumps(notify_args))
 		return notify.payload
 	except Exception as e:
 		logger.error("NOTIFY by the channel: " +channel+" not received. Error: " + str(e))
@@ -68,7 +72,7 @@ def loadRedisBrands(r,pgcon,pgcur):
 
 					# Send values to Redis
 					r.hmset(key,valuesDict)
-					logger.info("Values sent to redis successfully: "+key+","+valuesDict)
+					logger.info("Values sent to redis successfully: "+key+","+json.dumps(valuesDict))
 					current_row+=1
 			return True
 		else:
@@ -105,7 +109,7 @@ def loadRedisCategories(r,pgcon,pgcur):
 
 					# Send values to Redis
 					r.hmset(key,valuesDict)
-					logger.info("Values sent to redis successfully: "+key+","+valuesDict)
+					logger.info("Values sent to redis successfully: "+key+","+json.dumps(valuesDict))
 					current_row+=1
 			return True
 		else:
@@ -142,7 +146,7 @@ def loadRedisBrandsCategories(r,pgcon,pgcur):
 
 					# Send values to Redis
 					r.hmset(key,valuesDict)
-					logger.info("Values sent to redis successfully: "+key+","+valuesDict)
+					logger.info("Values sent to redis successfully: "+key+","+json.dumps(valuesDict))
 					current_row+=1
 			return True
 		else:
@@ -159,9 +163,9 @@ def redisResetLoad(r,pgcon,pgcur):
 		if (loadRedisBrands(r,pgcon,pgcur) == True
 			and loadRedisCategories(r,pgcon,pgcur) == True
 			and loadRedisBrandsCategories(r,pgcon,pgcur) == True):
-			logger.info("Redis has been populated successfully")
+			print("Redis has been populated successfully")
 		else:
-			logger.error("Error: Redis hasn't been populated")			
+			print("Error: Redis hasn't been populated")
 
 	except Exception as e:
 		logger.error("Fail in redisResetLoad. Error: "+ str(e))
