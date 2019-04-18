@@ -16,7 +16,7 @@ def postgresConnection():
 			)
 		curs = conn.cursor()
 	except (Exception,psycopg2.DatabaseError) as e:
-		print ("Postgres connection is not ready yet. Error: " + str(e))
+		logger.error("Postgres connection is not ready yet. Error: " + str(e))
 	return [conn, curs]
 
 def redisConnection():
@@ -28,17 +28,17 @@ def redisConnection():
 			)
 		r = redis.Redis(connection_pool=pool)
 	except Exception as e:
-		print ("Redis connection is not ready yet. Error: " + str(e))
+		logger.error("Redis connection is not ready yet. Error: " + str(e))
 	return r
 
 def listen(pgcon, pgcur, channel):
 	try:
 		pgcon.poll()
 		notify = pgcon.notifies.pop()
-		#print ("NOTIFY received:", notify.pid, notify.channel, notify.payload)
+		logger.logger("NOTIFY received:", notify.pid, notify.channel, notify.payload)
 		return notify.payload
 	except Exception as e:
-		print ("NOTIFY by the channel: " +channel+" not received. Error: " + str(e))
+		logger.error("NOTIFY by the channel: " +channel+" not received. Error: " + str(e))
 		return None
 
 def loadRedisBrands(r,pgcon,pgcur):
@@ -49,7 +49,7 @@ def loadRedisBrands(r,pgcon,pgcur):
 		pgcur.callproc("core_schema.udf_load_redis_brand")
 		nrows = pgcur.fetchone()
 		pgcur.execute("COMMIT")
-		# print ("Executed sucessfully udf_load_redis_brand")
+		logger.info("Executed successfully udf_load_redis_brand")
 
 		if (nrows[0] != None):
 			current_row = 0
@@ -68,13 +68,14 @@ def loadRedisBrands(r,pgcon,pgcur):
 
 					# Send values to Redis
 					r.hmset(key,valuesDict)
+					logger.info("Values sent to redis successfully: "+key+","+valuesDict)
 					current_row+=1
 			return True
 		else:
 			return False
 
 	except Exception as e:
-		print ("Fail in loadRedisBrands. Error: "+ str(e))
+		logger.error("Fail in loadRedisBrands. Error: "+ str(e))
 		return False
 
 def loadRedisCategories(r,pgcon,pgcur):
@@ -85,7 +86,7 @@ def loadRedisCategories(r,pgcon,pgcur):
 		pgcur.callproc("core_schema.udf_load_redis_categories")
 		nrows = pgcur.fetchone()
 		pgcur.execute("COMMIT")
-		# print ("Executed sucessfully udf_load_redis_categories")
+		logger.info("Executed successfully udf_load_redis_categories")
 
 		if (nrows[0] != None):
 			current_row = 0
@@ -104,13 +105,14 @@ def loadRedisCategories(r,pgcon,pgcur):
 
 					# Send values to Redis
 					r.hmset(key,valuesDict)
+					logger.info("Values sent to redis successfully: "+key+","+valuesDict)
 					current_row+=1
 			return True
 		else:
 			return False
 
 	except Exception as e:
-		print ("Fail in loadRedisCategories. Error: "+ str(e))
+		logger.error("Fail in loadRedisCategories. Error: "+ str(e))
 		return False
 
 def loadRedisBrandsCategories(r,pgcon,pgcur):
@@ -120,7 +122,7 @@ def loadRedisBrandsCategories(r,pgcon,pgcur):
 		pgcur.callproc("core_schema.udf_load_redis_brands_categories")
 		nrows = pgcur.fetchone()
 		pgcur.execute("COMMIT")
-		# print ("Executed sucessfully udf_load_redis_brands_categories")
+		logger.info("Executed successfully udf_load_redis_brands_categories")
 
 		if (nrows[0] != None):
 			current_row = 0
@@ -140,13 +142,14 @@ def loadRedisBrandsCategories(r,pgcon,pgcur):
 
 					# Send values to Redis
 					r.hmset(key,valuesDict)
+					logger.info("Values sent to redis successfully: "+key+","+valuesDict)
 					current_row+=1
 			return True
 		else:
 			return False
 
 	except Exception as e:
-		print ("Fail in loadRedisBrandsCategories. Error: "+ str(e))
+		logger.error("Fail in loadRedisBrandsCategories. Error: "+ str(e))
 		return False
 
 def redisResetLoad(r,pgcon,pgcur):
@@ -156,12 +159,12 @@ def redisResetLoad(r,pgcon,pgcur):
 		if (loadRedisBrands(r,pgcon,pgcur) == True
 			and loadRedisCategories(r,pgcon,pgcur) == True
 			and loadRedisBrandsCategories(r,pgcon,pgcur) == True):
-			print ("Redis has been populated sucessfully")
+			logger.info("Redis has been populated successfully")
 		else:
-			print ("Error: Redis hasn't been populated")			
+			logger.error("Error: Redis hasn't been populated")			
 
 	except Exception as e:
-		print ("Fail in redisResetLoad. Error: "+ str(e))
+		logger.error("Fail in redisResetLoad. Error: "+ str(e))
 
 def main():
 

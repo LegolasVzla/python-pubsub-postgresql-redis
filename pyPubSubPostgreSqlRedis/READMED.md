@@ -5,9 +5,16 @@ This is an example of the logic to use in case where redis is used, as cache of 
 
 For this example, i'll use **Edamam** API, to get a chunk of information. First of all, you'll need to register and get your own "app_id" and "app_key", you can find all the documentation here: https://developer.edamam.com/food-database-api-docs
 
-Install the requirements:
+Create your virtualenv and install the requirements:
+
+	virtualenv virtual_name --python=python3
+	source virtual_name/bin/activate
 
 	pip install -r requirements.txt
+
+Start redis server in your console:
+
+	redis-server
 
 Define your own connection settings for postgres and redis in the settings.ini file (according to configparser) as follow:
 
@@ -24,8 +31,32 @@ Define your own connection settings for postgres and redis in the settings.ini f
 	R_PORT=port
 
 	[appConf]
-	KEY=key
-	ID=id
+	APP_KEY=key
+	APP_ID=id
+
+Also, for logging, I set this configuration in my settings.ini file:
+
+	[loggers]
+	keys=root
+
+	[handlers]
+	keys=consoleHandler
+
+	[formatters]
+	keys=sampleFormatter
+
+	[logger_root]
+	level=INFO
+	handlers=consoleHandler
+
+	[handler_consoleHandler]
+	class=StreamHandler
+	level=ERROR
+	formatter=sampleFormatter
+	args=(sys.stdout,)
+
+	[formatter_sampleFormatter]
+	format=%(asctime)s - %(levelname)s - %(message)s
 
 And that's it. In this example you could find the basic logic for this kind of architecture.  
 

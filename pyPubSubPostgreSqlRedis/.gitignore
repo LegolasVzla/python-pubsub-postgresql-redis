@@ -109,3 +109,5 @@ settings.ini
 
 # Chunk of the json from the api
 foodChunk.json
+
+dump.rdb
