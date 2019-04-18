@@ -18,8 +18,8 @@ R_DB = config.get('redisConf', 'R_DB')
 R_HOST = config.get('redisConf', 'R_HOST')
 R_PORT = config.get('redisConf', 'R_PORT')
 
-APP_KEY = config.get('appConf', 'KEY')
-APP_ID = config.get('appConf', 'ID')
+APP_KEY = config.get('appConf', 'APP_KEY')
+APP_ID = config.get('appConf', 'APP_ID')
 
 # Logs properties for console output
 logging.config.fileConfig(fname=config, disable_existing_loggers=True)
@@ -30,8 +30,8 @@ logging.config.fileConfig(fname=config, disable_existing_loggers=True)
 logger = logging.getLogger(__name__)
 
 # Create handlers
-handler_info = logging.FileHandler('log_info.log')
-handler_error = logging.FileHandler('log_error.log')
+handler_info = logging.FileHandler(BASE_DIR + '/logs/log_info.log','w')
+handler_error = logging.FileHandler(BASE_DIR + '/logs/log_error.log','w')
 handler_info.setLevel(logging.INFO)
 handler_error.setLevel(logging.ERROR)
 
