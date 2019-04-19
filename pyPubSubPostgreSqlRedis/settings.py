@@ -25,15 +25,20 @@ APP_ID = config.get('appConf', 'APP_ID')
 logging.config.fileConfig(fname=config, disable_existing_loggers=True)
 
 # Logs properties for .logs files
+def custom_filter(record):
+	if record.levelname == 'INFO':
+		return True
 
 # Create a custom logger
-logger = logging.getLogger(__name__)
+handler_info = logging.FileHandler(BASE_DIR + '/logs/log_info.log','w')
+handler_info.addFilter(custom_filter)
+handler_info.setLevel(logging.INFO)
 
 # Create handlers
-handler_info = logging.FileHandler(BASE_DIR + '/logs/log_info.log','w')
 handler_error = logging.FileHandler(BASE_DIR + '/logs/log_error.log','w')
-handler_info.setLevel(logging.INFO)
 handler_error.setLevel(logging.ERROR)
+
+logger = logging.getLogger(__name__)
 
 # Create formatters and add it to handlers
 format_info = logging.Formatter('%(asctime)s - %(levelname)s - %(module)s : %(message)s')
