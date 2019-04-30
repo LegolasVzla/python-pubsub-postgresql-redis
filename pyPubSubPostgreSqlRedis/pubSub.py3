@@ -1,4 +1,6 @@
+#!/usr/bin/python3
 # -*- coding: utf-8 -*-
+from os.path import exists
 import psycopg2, psycopg2.extras
 import redis
 import requests
@@ -44,7 +46,7 @@ def api_query():
 		# example. If you want to use this API, you'll need request your
 		# private app_key
 		response = requests.get(
-			"https://api.edamam.com/api/food-database/parser?ingr=red%20apple&app_id="+APP_ID+"&app_key="+APP_KEY
+			"https://api.edamam.com/api/food-database/parser?ingr=red%20apple&app_id="+APP_ID+"&app_key="+APP_KEY,timeout=10
 			)
 		if(response.ok):
 			#print ("Well done!:\n",response.content)
@@ -67,7 +69,7 @@ def api_query():
 
 			logger.info("Data Packet received successfully")
 		else:
-			logger.error("Fail in response. Status code: "+response.status_code+"\n")
+			logger.error("Fail in response. Status code: "+str(response.status_code)+"\n")
 	
 	except Exception as e:
 		logger.error("Fail in api_query. Error: "+ str(e))

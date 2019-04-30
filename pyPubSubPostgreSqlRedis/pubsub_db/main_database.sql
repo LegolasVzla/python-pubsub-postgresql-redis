@@ -1,2 +1,0 @@
-DROP DATABASE IF EXISTS pubsub_db;
-CREATE DATABASE pubsub_db;
