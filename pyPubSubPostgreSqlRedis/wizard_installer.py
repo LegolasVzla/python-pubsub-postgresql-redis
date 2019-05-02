@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 import os
 from os.path import exists
+import string
 import requests
 import subprocess
 import time
@@ -47,14 +48,14 @@ def udf_postgres_test_connection(postgres_db_name, postgres_db_user,
 		print("Postgres connection is not ready yet. Error: " + str(e))
 	return validator
 
-def udf_redis_test_connection(redis_db_number,redis_db_host,redis_db_port):
+def udf_redis_test_connection(redis_db_index,redis_db_host,redis_db_port):
 	validator = False
 	try:
 		subprocess.call("nohup redis-server &",shell=True)
 		pool = redis.ConnectionPool(
 			host=redis_db_host,
 			port=redis_db_port,
-			db=redis_db_number
+			db=redis_db_index
 			)
 		r = redis.Redis(connection_pool=pool)
 		time.sleep(1)
@@ -100,13 +101,21 @@ def udf_parameters_validation(input_message,error_message):
 			if parameter == 'exit':
 				print (OUTPUT_MESSAGES[0])
 				os._exit(0)
-			# for postgres configuration
+			# Consider reserved words for postgres configuration
 			elif input_message == INPUT_MESSAGES[2] and parameter == 'user':
 				parameter = ""
 				print (OUTPUT_MESSAGES[7])
 			elif input_message == INPUT_MESSAGES[3] and parameter == 'password':
 				parameter = ""
 				print (OUTPUT_MESSAGES[8])
+			# Consider when password start with numbers
+			elif input_message == INPUT_MESSAGES[3] and parameter[0].isdigit():
+				parameter = '"' + parameter + '"'
+				validator = True
+			# Consider when password start with punctuation signs and numbers
+			elif input_message == INPUT_MESSAGES[3] and parameter[0] in string.punctuation and parameter[1].isdigit():
+				parameter = '"' + parameter + '"'
+				validator = True
 			else:
 				validator = True
 		# Empty input
@@ -127,7 +136,7 @@ def udf_environment_validation_parameters():
 	postgres_db_host = 'localhost'
 	postgres_db_port = 5432
 	postgres_validator = False
-	redis_db_number = None
+	redis_db_index = None
 	redis_db_host = 'localhost'
 	redis_db_port = 6379
 	redis_validator = False
@@ -150,29 +159,36 @@ def udf_environment_validation_parameters():
 				else:
 					print("Fail in response. Status code: "+str(response.status_code)+"\n")
 					print("Trying again...")
+					api_validator_count+=1
 					time.sleep(2)
-			if(api_validator_count == 3):
-				print ("Perhaps your APP_KEY or APP_ID credentials are wrong.")
+					if(x == 2):
+						print ("[ ERROR ] Failed test connection with the API. Perhaps your APP_KEY or APP_ID credentials are wrong.\n")
 		except requests.exceptions.ConnectionError as e:
+			api_validator = False
 			print("Fail in api_query. Error: "+ str(e))
 
 	print ("\n**** Postgresql Database Configuration ****")
 	while (postgres_validator is False):
 		postgres_db_user = udf_parameters_validation(INPUT_MESSAGES[2],OUTPUT_MESSAGES[3])
 		postgres_db_pass = udf_parameters_validation(INPUT_MESSAGES[3],OUTPUT_MESSAGES[4])
-
 		try:
 			# Create the postgres configuration
 			udf_postgres_configuration_create(postgres_db_user, postgres_db_pass)
-
 			# Execute all the functions needed
 			os.chdir(BASE_PATH + "/pubsub_db/")
-			#os.chmod("execute_all.sh", 775)
+			os.chmod("execute_all.sh", 775)
 			subprocess.call("./execute_all.sh", shell=False)
 			os.chdir(BASE_PATH)
 
 		except Exception as e:
 			print ("Fail creating the postgresql configuration. Error: " + str(e))
+
+		'''
+		Consider the case where password started with puntuaction signs
+		or numbers in udf_parameters_validation(), remove ""
+		'''  
+		if(postgres_db_pass[0] == '"'):
+			postgres_db_pass = postgres_db_pass.replace('"','')
 
 		if(udf_postgres_test_connection(postgres_db_name,postgres_db_user,
 			postgres_db_pass,postgres_db_host, postgres_db_port)):
@@ -182,18 +198,18 @@ def udf_environment_validation_parameters():
 
 	print ("\n**** Redis Configuration ****")
 	while (redis_validator is False):
-	    redis_db_number = udf_parameters_validation(INPUT_MESSAGES[5],OUTPUT_MESSAGES[6])
-	    if(udf_redis_test_connection(redis_db_number,redis_db_host,redis_db_port)):
+	    redis_db_index = udf_parameters_validation(INPUT_MESSAGES[5],OUTPUT_MESSAGES[6])
+	    if(udf_redis_test_connection(redis_db_index,redis_db_host,redis_db_port)):
 	    	redis_validator = True
 	    else:
 	    	print("Please enter your redis configuration again.\n")
 
 	return (postgres_db_name, postgres_db_user, postgres_db_pass, 
-	postgres_db_host, postgres_db_port, redis_db_number, redis_db_host, 
+	postgres_db_host, postgres_db_port, redis_db_index, redis_db_host, 
 	redis_db_port, app_key, app_id)
 
 def udf_environment_configuration_create(postgres_db_name, postgres_db_user,
-		postgres_db_pass, postgres_db_host, postgres_db_port, redis_db_number,
+		postgres_db_pass, postgres_db_host, postgres_db_port, redis_db_index,
 		redis_db_host, redis_db_port, app_key, app_id):
 	'''
 	Parameters for a settings.ini file with postgres, redis and api credentials,
@@ -209,7 +225,7 @@ DB_HOST=postgres_db_host
 DB_PORT=postgres_db_port
 
 [redisConf]
-R_DB=redis_db_number
+R_DB=redis_db_index
 R_HOST=redis_db_host
 R_PORT=redis_db_port
 
@@ -245,7 +261,7 @@ format=%(asctime)s - %(levelname)s - %(message)s
 				"postgres_db_pass": postgres_db_pass,
 				"postgres_db_host": postgres_db_host,
 				"postgres_db_port": postgres_db_port,
-				"redis_db_number": redis_db_number,
+				"redis_db_index": redis_db_index,
 				"redis_db_host": redis_db_host,
 				"redis_db_port": redis_db_port,
 				"app_key": app_key,
@@ -262,14 +278,14 @@ def main():
 
 	# Get all the values for the configuration parameters
 	(postgres_db_name, postgres_db_user, postgres_db_pass, 
-	postgres_db_host, postgres_db_port, redis_db_number, 
+	postgres_db_host, postgres_db_port, redis_db_index, 
 	redis_db_host, redis_db_port, app_key, app_id) = udf_environment_validation_parameters()
 
 	udf_redis_configuration_update(redis_db_host, redis_db_port)
 
 	# Create the settings.ini file
 	udf_environment_configuration_create(postgres_db_name, postgres_db_user,
-		postgres_db_pass, postgres_db_host, postgres_db_port, redis_db_number,
+		postgres_db_pass, postgres_db_host, postgres_db_port, redis_db_index,
 		redis_db_host, redis_db_port, app_key, app_id)
 
 	if exists('settings.ini'):
