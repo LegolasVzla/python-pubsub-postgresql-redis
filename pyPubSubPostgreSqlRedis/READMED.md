@@ -12,22 +12,11 @@ Create your virtualenv and install the requirements:
 
 	pip install -r requirements.txt
 
-Start redis server in your console:
+Execute the wizzard installer to generate the enviroment variables, related with the credentials of the API, postgres and redis configuration. It also will create the PostgreSql database and start redis-server:
 
-	redis-server
+	sudo ./env/bin/python wizard_installer.py 
 
-Give permission to "execute_all.sh":
-
-	chmod +x pubsub_db/execute_all.sh
-	sudo -i -u postgres
-
-Move to the folder of the project and execute it as postgres user:
-
-	./execute_all.sh
-
-Now you have create your database and all the functions needed.
-
-Define your own connection settings for postgres and redis in the settings.ini file (according to configparser) as follow:
+Assuming that "env" is the name of your virtualenv and it's located inside of the **pyPubSubPostgreSqlRedis** folder. The wizzard installer will generate a settings.ini file with the next configuration:
 
 	[pgConf]
 	DB_NAME=dbname
@@ -45,7 +34,7 @@ Define your own connection settings for postgres and redis in the settings.ini f
 	APP_KEY=key
 	APP_ID=id
 
-Also, for logging, I set this configuration in my settings.ini file:
+Also, configuration for logging with 2 levels: ERROR (by output console and .log file) and INFO (by .log file):
 
 	[loggers]
 	keys=root
@@ -69,7 +58,11 @@ Also, for logging, I set this configuration in my settings.ini file:
 	[formatter_sampleFormatter]
 	format=%(asctime)s - %(levelname)s - %(message)s
 
-And that's it. In this example you could find the basic logic for this kind of architecture.  
+And that's it. Now you can execute the pubSub.py file:
+
+	python pubSub.py
+
+In this example you could find the basic logic for this kind of architecture, **Publish–subscribe patter**.  
 
 Also in case of redis failure (e.g. Lost data in redis), you can execute "redisResetLoad.py3" to get all the information from postgres, and then, store again in redis.
 
