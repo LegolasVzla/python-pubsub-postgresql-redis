@@ -12,11 +12,11 @@ Create your virtualenv and install the requirements:
 
 	pip install -r requirements.txt
 
-Execute the wizzard installer to generate the enviroment variables, related with the credentials of the API, postgres and redis configuration. It also will create the PostgreSql database and start redis-server:
+Execute the wizard installer:
 
 	sudo ./env/bin/python wizard_installer.py 
 
-Assuming that "env" is the name of your virtualenv and it's located inside of the **pyPubSubPostgreSqlRedis** folder. The wizzard installer will generate a settings.ini file with the next configuration:
+Assuming that "env" is the name of your virtualenv and it's located inside of the **pyPubSubPostgreSqlRedis** folder. The wizard will generate a **settings.ini** file, with the enviroment variables, related with the credentials of the API, postgres and redis configuration. It also will create the PostgreSql database, with all the statement in a **main_postgres_db_config.sh** file and execute, all the database elements contained in the folder **pubsub_db** folder. By last, the wizard also will start redis-server service. The structure of the **settings.ini** file, is described below:
 
 	[pgConf]
 	DB_NAME=dbname

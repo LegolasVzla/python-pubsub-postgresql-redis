@@ -79,17 +79,63 @@ def udf_postgres_configuration_create(postgres_db_user,postgres_db_pass):
 
 	global BASE_PATH
 
-	with open(BASE_PATH + "/pubsub_db/execute_all.sh") as text_file:
-		temporal_file_content = text_file.read()
+	text="""#!/bin/bash
+sudo -u postgres psql -c "DROP DATABASE IF EXISTS pubsub_db;"
+sudo -u postgres psql -c "DROP USER IF EXISTS postgres_db_user;"
+sudo -u postgres psql -c "CREATE USER postgres_db_user WITH PASSWORD 'postgres_db_pass';"
+sudo -u postgres psql -c "ALTER ROLE postgres_db_user WITH SUPERUSER;"
+sudo -u postgres psql -c "CREATE DATABASE pubsub_db WITH OWNER postgres_db_user;"
+sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE pubsub_db TO postgres_db_user;"
+sudo -u postgres psql -d pubsub_db -a -c "CREATE SCHEMA core_schema;"
+"""
 
 	dictionary = {"postgres_db_user": postgres_db_user,
 				"postgres_db_pass": postgres_db_pass}
 
 	# Replace default parameters name to parameters named by the user
-	new_file_content = udf_replace_parameters(temporal_file_content, dictionary)
+	new_file_content = udf_replace_parameters(text, dictionary)
 
-	with open(BASE_PATH + "/pubsub_db/execute_all.sh", "+w") as text_file:
+	# Create the main postgres database configuration file
+	with open(BASE_PATH + "/pubsub_db/main_postgres_db_config.sh", "+w") as text_file:
 		text_file.write(new_file_content)
+
+def udf_postgres_execute_database_object(postgres_db_name,db_elem_folder,schema_path):
+
+	global BASE_PATH
+	os.chdir(db_elem_folder)
+	CURRENT_PATH = os.getcwd()
+
+	# Get the current database objects (tables and functions list)
+	DB_ELEMENTS_OBJECTS = os.listdir(os.getcwd())
+
+	# Execute all the database objects (tables and functions list)
+	for j,db_elem_object in enumerate(DB_ELEMENTS_OBJECTS):
+
+		os.chdir(BASE_PATH)
+
+		subprocess.call("sudo -u postgres psql -d "+postgres_db_name+" -a -f "+CURRENT_PATH+"/"+db_elem_object,shell=True)
+
+		os.chdir(CURRENT_PATH)
+
+	# Return to the core_schema folder
+	os.chdir(schema_path)
+
+def udf_postgres_create_database_elements(postgres_db_name,postgres_db_pass,postgres_db_user,postgres_db_host,postgres_db_port):
+
+	os.chdir("core_schema")
+	SCHEMA_PATH = os.getcwd()
+
+	db_elem_folder = "tables"
+	udf_postgres_execute_database_object(postgres_db_name,db_elem_folder,SCHEMA_PATH)
+
+	db_elem_folder = "relations"
+	udf_postgres_execute_database_object(postgres_db_name,db_elem_folder,SCHEMA_PATH)
+
+	db_elem_folder = "functions"
+	udf_postgres_execute_database_object(postgres_db_name,db_elem_folder,SCHEMA_PATH)
+
+	# Return to the pubsub_db folder
+	os.chdir(BASE_PATH)
 
 def udf_parameters_validation(input_message,error_message):
 	global OUTPUT_MESSAGES, INPUT_MESSAGES
@@ -174,11 +220,11 @@ def udf_environment_validation_parameters():
 		try:
 			# Create the postgres configuration
 			udf_postgres_configuration_create(postgres_db_user, postgres_db_pass)
-			# Execute all the functions needed
+
+			# Generate the main postgres database
 			os.chdir(BASE_PATH + "/pubsub_db/")
-			os.chmod("execute_all.sh", 775)
-			subprocess.call("./execute_all.sh", shell=False)
-			os.chdir(BASE_PATH)
+			os.chmod("main_postgres_db_config.sh", 775)
+			subprocess.call("./main_postgres_db_config.sh", shell=False)
 
 		except Exception as e:
 			print ("Fail creating the postgresql configuration. Error: " + str(e))
@@ -192,7 +238,13 @@ def udf_environment_validation_parameters():
 
 		if(udf_postgres_test_connection(postgres_db_name,postgres_db_user,
 			postgres_db_pass,postgres_db_host, postgres_db_port)):
+
+			# Create the tables and the functions needed
+			udf_postgres_create_database_elements(postgres_db_name,postgres_db_pass,postgres_db_user,postgres_db_host,postgres_db_port)
+			os.chdir(BASE_PATH)
+
 			postgres_validator = True
+
 		else:
 			print("Please enter your postgres configuration again.\n")
 
