@@ -16,7 +16,8 @@ INPUT_MESSAGES = ["Enter the app key: \n APP_KEY: ",
 	"Enter a postgres user. \n POSTGRESQL USER: ",
 	"Enter a postgresql password. \n POSTGRESQL PASSWORD: ",
 	"Enter a postgresql database name. \n POSTGRESQL DATABASE NAME: ",
-	"Enter a redis database number. \n REDIS DATABASE NUMBER: "
+	"Enter a redis database index. \n REDIS DATABASE INDEX: ",
+	"Enter a redis database port. \n REDIS DATABASE PORT: "	
 	]
 OUTPUT_MESSAGES = ["Configuration finish unsuccessfully by the user.",
 	"[ ERROR ] You must provide the app key.",
@@ -24,7 +25,8 @@ OUTPUT_MESSAGES = ["Configuration finish unsuccessfully by the user.",
 	"[ ERROR ] You must provide an user for the postgres configuration.",
 	"[ ERROR ] You must provide a password for the postgres configuration.",
 	"[ ERROR ] You must provide a database name for the postgres configuration.",
-	"[ ERROR ] You must provide a database number for the redis configuration.",
+	"[ ERROR ] You must provide a database index for the redis configuration.",
+	"[ ERROR ] You must provide a database port for the redis configuration.",
 	"[ ERROR ] Please provide a different username.",
 	"[ ERROR ] Please provide a different password."
 	]
@@ -39,7 +41,6 @@ class bcolors:
 
 def udf_postgres_test_connection(postgres_db_name, postgres_db_user, 
 	postgres_db_pass, postgres_db_host, postgres_db_port):
-	validator = False
 	print (bcolors.OKBLUE + "Testing postgres connection..." + bcolors.ENDC)
 	time.sleep(1)
 	try:
@@ -53,16 +54,14 @@ def udf_postgres_test_connection(postgres_db_name, postgres_db_user,
 			)
 		curs = conn.cursor()
 		print (bcolors.OKGREEN + "[ OK ] Successful Test Connection with Postgres." + bcolors.ENDC)
-		validator = True
+		return True
 	except (Exception,psycopg2.DatabaseError) as e:
 		print (bcolors.FAIL + "Postgres connection is not ready yet. Error: " + str(e) + bcolors.ENDC)
-	return validator
 
 def udf_redis_test_connection(redis_db_index,redis_db_host,redis_db_port):
-	validator = False
 	print (bcolors.OKBLUE + "Testing redis connection..." + bcolors.ENDC)
 	try:
-		subprocess.call("nohup redis-server &",shell=True)
+		subprocess.call("nohup redis-server --port "+str(redis_db_port)+" &",shell=True)
 		pool = redis.ConnectionPool(
 			host=redis_db_host,
 			port=redis_db_port,
@@ -71,15 +70,10 @@ def udf_redis_test_connection(redis_db_index,redis_db_host,redis_db_port):
 		r = redis.Redis(connection_pool=pool)
 		time.sleep(1)
 		if(r.ping()):
-			validator = True
 			print (bcolors.OKGREEN + "[ OK ] Successful Test Connection with Redis." + bcolors.ENDC)
+			return True
 	except Exception as e:
 		print (bcolors.FAIL + "Redis connection is not ready yet. Error: " + str(e) + bcolors.ENDC)
-	return validator
-
-# Function to set host and port in redis.conf
-def udf_redis_configuration_update(redis_db_host, redis_db_port):
-	pass
 
 def udf_replace_parameters(text, dic):
 	for i, j in dic.items():
@@ -161,10 +155,10 @@ def udf_parameters_validation(input_message,error_message):
 			# Consider reserved words for postgres configuration
 			elif input_message == INPUT_MESSAGES[2] and parameter == 'user':
 				parameter = ""
-				print (bcolors.FAIL + OUTPUT_MESSAGES[7] + bcolors.ENDC)
+				print (bcolors.FAIL + OUTPUT_MESSAGES[8] + bcolors.ENDC)
 			elif input_message == INPUT_MESSAGES[3] and parameter == 'password':
 				parameter = ""
-				print (bcolors.FAIL + OUTPUT_MESSAGES[8] + bcolors.ENDC)
+				print (bcolors.FAIL + OUTPUT_MESSAGES[9] + bcolors.ENDC)
 			# Consider when password start with numbers
 			elif input_message == INPUT_MESSAGES[3] and parameter[0].isdigit():
 				parameter = '"' + parameter + '"'
@@ -195,7 +189,7 @@ def udf_environment_validation_parameters():
 	postgres_validator = False
 	redis_db_index = None
 	redis_db_host = 'localhost'
-	redis_db_port = 6379
+	redis_db_port = None
 	redis_validator = False
 	
 	print (bcolors.BOLD + "-------Wizard Installer-------\n" + bcolors.ENDC)
@@ -263,6 +257,7 @@ def udf_environment_validation_parameters():
 	print (bcolors.BOLD + "\n**** Redis Configuration ****" + bcolors.ENDC)
 	while (redis_validator is False):
 	    redis_db_index = udf_parameters_validation(INPUT_MESSAGES[5],OUTPUT_MESSAGES[6])
+	    redis_db_port = udf_parameters_validation(INPUT_MESSAGES[6],OUTPUT_MESSAGES[7])
 	    if(udf_redis_test_connection(redis_db_index,redis_db_host,redis_db_port)):
 	    	redis_validator = True
 	    else:
@@ -344,8 +339,6 @@ def main():
 	(postgres_db_name, postgres_db_user, postgres_db_pass, 
 	postgres_db_host, postgres_db_port, redis_db_index, 
 	redis_db_host, redis_db_port, app_key, app_id) = udf_environment_validation_parameters()
-
-	udf_redis_configuration_update(redis_db_host, redis_db_port)
 
 	# Create the settings.ini file
 	udf_environment_configuration_create(postgres_db_name, postgres_db_user,
